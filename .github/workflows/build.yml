@@ -161,15 +161,14 @@ jobs:
       - name: Update dependencies
         run: |
           sudo apt update
-          #sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             git build-essential autoconf automake libtool \
             autoconf-archive pkg-config libglib2.0-dev libglibmm-2.4-dev \
             libzip-dev libusb-1.0-0-dev libftdi1-dev nettle-dev \
-            libavahi-client-dev check doxygen swig \
+            libavahi-client-dev python3-dev check doxygen swig \
             libbluetooth-dev libhidapi-dev libtirpc-dev \
-            libboost-dev libboost-test-dev libqt5svg5-dev qtbase5-dev
-          sudo apt-get install -y --no-install-recommends xmlto
+            libboost-dev libboost-test-dev xmlto \
+            libqt5svg5-dev qtbase5-dev libqt5opengl5-dev
 
       - name: Checkout smuview
         uses: actions/checkout@v3
