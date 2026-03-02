@@ -1,0 +1,136 @@
+version: 1
+
+project:
+  name: com.github.knarfs.smuview
+  #version_command: git describe --tags
+
+build:
+  cmake:
+    extra_variables:
+      # Taken from some other script
+      - DISABLE_WERROR=y
+      - ENABLE_TESTS=n
+      - CMAKE_EXPORT_COMPILE_COMMANDS=y
+      - PYBIND11_FINDPYTHON=ON
+    raw_extra_variables:
+      - FORCE_PYBIND11_29=$FORCE_PYBIND11_29
+    raw_environment:
+      # We have to pre-build some dependencies, and also want to ship our own custom Python environment
+      # the CMake build system has been instructed to load the dependencies via pkg-config
+      - PKG_CONFIG_PATH="$BUILD_DIR"/deps/lib/pkgconfig:"$BUILD_DIR"/AppDir/usr/conda/lib/pkgconfig:"$PKG_CONFIG_PATH"
+      # Also we want to use a newer CMake version
+      - PATH="$BUILD_DIR"/deps/bin:"$PATH"
+    script:
+      - |2
+        . AppDir/usr/conda/bin/activate
+        echo "PKG_CONFIG_PATH (cmake): $PKG_CONFIG_PATH"
+
+scripts:
+  pre_build:
+    - pushd "$BUILD_DIR"
+    - |2
+      echo "FORCE_PYBIND11_29: ${FORCE_PYBIND11_29}"
+      # We need the Python environment before the build already, therefore we have to run the conda
+      # plugin manually before the build
+      #wget https://github.com/linuxdeploy/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
+      wget https://github.com/knarfS/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
+      # Skip the built-in cleanup as the build needs the development files (headers, libs, ...)
+      export CONDA_SKIP_CLEANUP=1
+      export CONDA_SKIP_ADJUST_PATHS=1
+      chmod +x linuxdeploy-plugin-conda.sh
+      ./linuxdeploy-plugin-conda.sh --appdir AppDir
+      . AppDir/usr/conda/bin/activate
+    - popd
+    - |2
+      # Setup environment for dependencies
+      export PKG_CONFIG_PATH="$BUILD_DIR/deps/lib/pkgconfig:$PKG_CONFIG_PATH"
+      export CFLAGS="-I$BUILD_DIR/deps/include $CFLAGS"
+      export CXXFLAGS="-I$BUILD_DIR/deps/include $CXXFLAGS"
+      export LDFLAGS="-L$BUILD_DIR/deps/lib $LDFLAGS"
+      
+      # Build libserialport
+      git clone https://github.com/taligentx/sigrok-libserialport
+      pushd sigrok-libserialport
+      ./autogen.sh
+      ./configure --prefix="$BUILD_DIR"/deps
+      make -j$(nproc)
+      make install
+      popd
+
+      # Build librevisa
+      git clone https://github.com/taligentx/sigrok-librevisa
+      pushd sigrok-librevisa
+      autoreconf -f -i
+      ./configure --prefix="$BUILD_DIR"/deps
+      make -j$(nproc)
+      make install
+      popd
+
+      # Build libieee1284
+      git clone https://github.com/twaugh/libieee1284.git
+      pushd libieee1284
+      ./bootstrap
+      ./configure --prefix="$BUILD_DIR"/deps
+      make -j$(nproc)
+      make install
+      popd
+
+      # Build libgpib
+      git clone https://git.code.sf.net/p/linux-gpib/git linux-gpib
+      pushd linux-gpib/linux-gpib-user
+      ./bootstrap
+      ./configure --prefix="$BUILD_DIR"/deps --sysconfdir="$BUILD_DIR"/deps/etc
+      make -j$(nproc)
+      make install
+      popd
+
+      # Build libsigrok
+      git clone --branch zeeweii_dso3d12 https://github.com/taligentx/sigrok-libsigrok
+      pushd sigrok-libsigrok
+      ./autogen.sh
+      ./configure --prefix="$BUILD_DIR"/deps
+      make -j$(nproc)
+      make install
+      popd
+
+      # Build QWT
+      git clone https://github.com/czyt1988/QWT.git
+      pushd QWT
+      mkdir build
+      cd build
+      cmake -DCMAKE_INSTALL_PREFIX="$BUILD_DIR"/deps -DQWT_CONFIG_BUILD_EXAMPLE=no -DQWT_CONFIG_BUILD_PLAYGROUND=no ..
+      make -j$(nproc)
+      make install
+      popd
+
+  post_build:
+    - |2
+      # Cleanup conda
+      export CONDA_SKIP_INSTALL=1
+      export CONDA_SKIP_ADJUST_PATHS=0
+      ./linuxdeploy-plugin-conda.sh --appdir AppDir
+    - |2
+      # Generate AppRun.sh scrip
+      cat > "$BUILD_DIR"/AppRun.sh <<\EOF
+      #! /bin/bash
+
+      # Load miniconda environment
+      . "$APPDIR"/usr/conda/etc/profile.d/conda.sh
+      conda activate
+
+      # Run SmuView
+      exec "$APPDIR"/usr/bin/smuview "$@"
+      EOF
+    - chmod +x "$BUILD_DIR"/AppRun.sh
+    - |2
+      # Set VERSION from CMake generated shell script
+      source cmake-build/contrib/config_version.sh
+      export VERSION=${SV_VERSION_STRING}
+
+appimage:
+  linuxdeploy:
+    plugins:
+      - qt
+    extra_args: --custom-apprun "$BUILD_DIR"/AppRun.sh
+    raw_environment:
+      - LD_LIBRARY_PATH="$LD_LIBRARY_PATH":"$BUILD_DIR"/deps/lib:"$BUILD_DIR"/AppDir/usr/conda/lib:/usr/local/lib
