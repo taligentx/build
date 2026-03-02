@@ -163,7 +163,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y --no-install-recommends \
             git build-essential autoconf automake libtool \
-            autoconf-archive pkg-config libglib2.0-dev libglibmm-2.4-dev \
+            bison flex pkg-config libglib2.0-dev libglibmm-2.4-dev \
             libzip-dev libusb-1.0-0-dev libftdi1-dev nettle-dev \
             libavahi-client-dev python3-dev check doxygen swig \
             libbluetooth-dev libhidapi-dev libtirpc-dev \
