@@ -160,15 +160,26 @@ jobs:
     steps:
       - name: Update dependencies
         run: |
-          sudo apt update
-          sudo apt-get install -y --no-install-recommends \
-            git build-essential autoconf automake libtool \
-            bison flex pkg-config libglib2.0-dev libglibmm-2.4-dev \
-            libzip-dev libusb-1.0-0-dev libftdi1-dev nettle-dev \
-            libavahi-client-dev python3-dev check doxygen swig \
-            libbluetooth-dev libhidapi-dev libtirpc-dev \
-            libboost-dev libboost-test-dev xmlto \
-            libqt5svg5-dev qtbase5-dev libqt5opengl5-dev
+          if [ "${{ matrix.target.target }}" == "i386" ]; then
+            sudo dpkg --add-architecture i386
+          fi
+          sudo apt-get update
+
+          # Tools that should remain native (64-bit)
+          TOOLS="git build-essential autoconf automake libtool autoconf-archive pkg-config doxygen swig bison flex xmlto"
+
+          # Libraries that need the architecture suffix
+          LIBS="libglib2.0-dev libglibmm-2.4-dev libzip-dev libusb-1.0-0-dev libftdi1-dev nettle-dev \
+                libavahi-client-dev python3-dev check libbluetooth-dev libhidapi-dev libtirpc-dev \
+                libboost-dev libboost-test-dev libqt5svg5-dev qtbase5-dev libqt5opengl5-dev"
+
+          if [ "${{ matrix.target.target }}" == "i386" ]; then
+            # Append :i386 to each library package
+            LIBS_I386=$(echo $LIBS | sed 's/\([^ ]*\)/\1:i386/g')
+            sudo apt-get install -y --no-install-recommends $TOOLS $LIBS_I386
+          else
+            sudo apt-get install -y --no-install-recommends $TOOLS $LIBS
+          fi
 
       - name: Checkout smuview
         uses: actions/checkout@v3
