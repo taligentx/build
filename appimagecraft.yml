@@ -7,21 +7,18 @@ project:
 build:
   cmake:
     extra_variables:
+      # Taken from some other script
       - DISABLE_WERROR=y
       - ENABLE_TESTS=n
       - CMAKE_EXPORT_COMPILE_COMMANDS=y
       - PYBIND11_FINDPYTHON=ON
-      # Force pybind11 2.9.2 as the AppImage Conda environment uses Python 3.7
-      - FORCE_PYBIND11_29=ON
     raw_extra_variables:
-      - CMAKE_C_FLAGS=$CFLAGS
-      - CMAKE_CXX_FLAGS=$CXXFLAGS
+      - FORCE_PYBIND11_29=$FORCE_PYBIND11_29
     raw_environment:
-      # Pass through architecture-specific flags
-      - CFLAGS="$CFLAGS"
-      - CXXFLAGS="$CXXFLAGS"
-      - LDFLAGS="$LDFLAGS"
+      # We have to pre-build some dependencies, and also want to ship our own custom Python environment
+      # the CMake build system has been instructed to load the dependencies via pkg-config
       - PKG_CONFIG_PATH="$BUILD_DIR"/deps/lib/pkgconfig:"$BUILD_DIR"/AppDir/usr/conda/lib/pkgconfig:"$PKG_CONFIG_PATH"
+      # Also we want to use a newer CMake version
       - PATH="$BUILD_DIR"/deps/bin:"$PATH"
     script:
       - |2
@@ -32,14 +29,10 @@ scripts:
   pre_build:
     - pushd "$BUILD_DIR"
     - |2
-      # Detect architecture
-      if [ -z "$ARCH" ]; then
-        ARCH=$(uname -m)
-      fi
-      echo "Building for architecture: $ARCH"
-
+      echo "FORCE_PYBIND11_29: ${FORCE_PYBIND11_29}"
       # We need the Python environment before the build already, therefore we have to run the conda
       # plugin manually before the build
+      #wget https://github.com/linuxdeploy/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
       wget https://github.com/knarfS/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
       # Skip the built-in cleanup as the build needs the development files (headers, libs, ...)
       export CONDA_SKIP_CLEANUP=1
@@ -47,23 +40,8 @@ scripts:
       chmod +x linuxdeploy-plugin-conda.sh
       ./linuxdeploy-plugin-conda.sh --appdir AppDir
       . AppDir/usr/conda/bin/activate
-
-      # Setup environment for dependencies
-      export PKG_CONFIG_PATH="$BUILD_DIR/deps/lib/pkgconfig:$BUILD_DIR/AppDir/usr/conda/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-      # Add Conda Python headers to CPATH to ensure they are found by dependency builds
-      PYTHON_INC=$(python3 -c "import sysconfig; print(sysconfig.get_path('include'))")
-      export CPATH="$PYTHON_INC:$BUILD_DIR/deps/include:$CPATH"
-
-      # Use exported CFLAGS/CXXFLAGS/LDFLAGS or default to 32-bit if targeting i386
-      if [ "$ARCH" == "i386" ] || [ "$ARCH" == "i686" ]; then
-        export CFLAGS="-m32 -I$BUILD_DIR/deps/include $CFLAGS"
-        export CXXFLAGS="-m32 -I$BUILD_DIR/deps/include $CXXFLAGS"
-        export LDFLAGS="-m32 -L$BUILD_DIR/deps/lib -L$BUILD_DIR/AppDir/usr/conda/lib $LDFLAGS"
-        HOST_TRIPLET="--host=i686-linux-gnu"
-        SIGROK_LD="LD='ld -m elf_i386'"
-      fi
-      
+    - popd
+    - |2
       # Build libserialport
       git clone https://github.com/taligentx/sigrok-libserialport
       pushd sigrok-libserialport
@@ -103,7 +81,6 @@ scripts:
       make -j$(nproc)
       make install
       popd
-    - popd
 
   post_build:
     - |2
@@ -112,14 +89,13 @@ scripts:
       export CONDA_SKIP_ADJUST_PATHS=0
       ./linuxdeploy-plugin-conda.sh --appdir AppDir
     - |2
-      # Generate AppRun.sh script
+      # Generate AppRun.sh scrip
       cat > "$BUILD_DIR"/AppRun.sh <<\EOF
       #! /bin/bash
 
-      # Set paths for the bundled Conda environment
-      export PATH="$APPDIR/usr/conda/bin:$PATH"
-      export PYTHONHOME="$APPDIR/usr/conda"
-      export LD_LIBRARY_PATH="$APPDIR/usr/conda/lib:$APPDIR/usr/lib:$LD_LIBRARY_PATH"
+      # Load miniconda environment
+      . "$APPDIR"/usr/conda/etc/profile.d/conda.sh
+      conda activate
 
       # Run SmuView
       exec "$APPDIR"/usr/bin/smuview "$@"
