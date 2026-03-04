@@ -132,14 +132,6 @@ jobs:
     strategy:
       matrix:
         target:
-          - target: "i386"
-            container: "x86_64-i386"
-            cc: "gcc -m32"
-            cxx: "g++ -m32"
-            ld: "ld -melf_i386"
-            ldflags: "-m32"
-            qmake: "/usr/lib/i386-linux-gnu/qt5/bin/qmake"
-            force_pybind11_29: true
           - target: "x86_64"
             container: "x86_64"
             cc: "gcc"
@@ -160,26 +152,15 @@ jobs:
     steps:
       - name: Update dependencies
         run: |
-          if [ "${{ matrix.target.target }}" == "i386" ]; then
-            sudo dpkg --add-architecture i386
-          fi
-          sudo apt-get update
-
-          # Tools that should remain native (64-bit)
-          TOOLS="git build-essential autoconf automake libtool autoconf-archive pkg-config doxygen swig bison flex xmlto"
-
-          # Libraries that need the architecture suffix
-          LIBS="libglib2.0-dev libglibmm-2.4-dev libzip-dev libusb-1.0-0-dev libftdi1-dev nettle-dev \
-                libavahi-client-dev python3-dev check libbluetooth-dev libhidapi-dev libtirpc-dev \
-                libboost-dev libboost-test-dev libqt5svg5-dev qtbase5-dev libqt5opengl5-dev"
-
-          if [ "${{ matrix.target.target }}" == "i386" ]; then
-            # Append :i386 to each library package
-            LIBS_I386=$(echo $LIBS | sed 's/\([^ ]*\)/\1:i386/g')
-            sudo apt-get install -y --no-install-recommends $TOOLS $LIBS_I386
-          else
-            sudo apt-get install -y --no-install-recommends $TOOLS $LIBS
-          fi
+          sudo apt update
+          sudo apt install -y --no-install-recommends \
+            autoconf autoconf-archive automake bison build-essential check \
+            cmake doxygen flex git libavahi-client-dev libbluetooth-dev \
+            libboost-dev libboost-test-dev libftdi1-dev libglib2.0-dev \
+            libglibmm-2.4-dev libhidapi-dev libieee1284-3-dev libqt5opengl5-dev \
+            libqt5svg5-dev libtirpc-dev libtool libusb-1.0-0-dev libvisa-dev \
+            libzip-dev nettle-dev pkg-config python-gi-dev python3-dev \
+            python3-setuptools qtbase5-dev swig xmlto
 
       - name: Checkout smuview
         uses: actions/checkout@v3

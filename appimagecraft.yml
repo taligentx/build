@@ -7,18 +7,21 @@ project:
 build:
   cmake:
     extra_variables:
-      # Taken from some other script
       - DISABLE_WERROR=y
       - ENABLE_TESTS=n
       - CMAKE_EXPORT_COMPILE_COMMANDS=y
       - PYBIND11_FINDPYTHON=ON
+      # Force pybind11 2.9.2 as the AppImage Conda environment uses Python 3.7
+      - FORCE_PYBIND11_29=ON
     raw_extra_variables:
-      - FORCE_PYBIND11_29=$FORCE_PYBIND11_29
+      - CMAKE_C_FLAGS=$CFLAGS
+      - CMAKE_CXX_FLAGS=$CXXFLAGS
     raw_environment:
-      # We have to pre-build some dependencies, and also want to ship our own custom Python environment
-      # the CMake build system has been instructed to load the dependencies via pkg-config
+      # Pass through architecture-specific flags
+      - CFLAGS="$CFLAGS"
+      - CXXFLAGS="$CXXFLAGS"
+      - LDFLAGS="$LDFLAGS"
       - PKG_CONFIG_PATH="$BUILD_DIR"/deps/lib/pkgconfig:"$BUILD_DIR"/AppDir/usr/conda/lib/pkgconfig:"$PKG_CONFIG_PATH"
-      # Also we want to use a newer CMake version
       - PATH="$BUILD_DIR"/deps/bin:"$PATH"
     script:
       - |2
@@ -29,10 +32,14 @@ scripts:
   pre_build:
     - pushd "$BUILD_DIR"
     - |2
-      echo "FORCE_PYBIND11_29: ${FORCE_PYBIND11_29}"
+      # Detect architecture
+      if [ -z "$ARCH" ]; then
+        ARCH=$(uname -m)
+      fi
+      echo "Building for architecture: $ARCH"
+
       # We need the Python environment before the build already, therefore we have to run the conda
       # plugin manually before the build
-      #wget https://github.com/linuxdeploy/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
       wget https://github.com/knarfS/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
       # Skip the built-in cleanup as the build needs the development files (headers, libs, ...)
       export CONDA_SKIP_CLEANUP=1
@@ -47,33 +54,21 @@ scripts:
       # Add Conda Python headers to CPATH to ensure they are found by dependency builds
       PYTHON_INC=$(python3 -c "import sysconfig; print(sysconfig.get_path('include'))")
       export CPATH="$PYTHON_INC:$BUILD_DIR/deps/include:$CPATH"
-      export CFLAGS="-I$BUILD_DIR/deps/include $CFLAGS"
-      export CXXFLAGS="-I$BUILD_DIR/deps/include $CXXFLAGS"
-      export LDFLAGS="-L$BUILD_DIR/deps/lib -L$BUILD_DIR/AppDir/usr/conda/lib $LDFLAGS"
+
+      # Use exported CFLAGS/CXXFLAGS/LDFLAGS or default to 32-bit if targeting i386
+      if [ "$ARCH" == "i386" ] || [ "$ARCH" == "i686" ]; then
+        export CFLAGS="-m32 -I$BUILD_DIR/deps/include $CFLAGS"
+        export CXXFLAGS="-m32 -I$BUILD_DIR/deps/include $CXXFLAGS"
+        export LDFLAGS="-m32 -L$BUILD_DIR/deps/lib -L$BUILD_DIR/AppDir/usr/conda/lib $LDFLAGS"
+        HOST_TRIPLET="--host=i686-linux-gnu"
+        SIGROK_LD="LD='ld -m elf_i386'"
+      fi
       
       # Build libserialport
       git clone https://github.com/taligentx/sigrok-libserialport
       pushd sigrok-libserialport
       ./autogen.sh
-      ./configure --prefix="$BUILD_DIR"/deps
-      make -j$(nproc)
-      make install
-      popd
-
-      # Build librevisa
-      git clone https://github.com/taligentx/sigrok-librevisa
-      pushd sigrok-librevisa
-      autoreconf -f -i
-      ./configure --prefix="$BUILD_DIR"/deps
-      make -j$(nproc)
-      make install
-      popd
-
-      # Build libieee1284
-      git clone https://github.com/twaugh/libieee1284.git
-      pushd libieee1284
-      ./bootstrap
-      ./configure --prefix="$BUILD_DIR"/deps
+      ./configure --prefix="$BUILD_DIR"/deps $HOST_TRIPLET
       make -j$(nproc)
       make install
       popd
@@ -82,7 +77,7 @@ scripts:
       git clone https://git.code.sf.net/p/linux-gpib/git linux-gpib
       pushd linux-gpib/linux-gpib-user
       ./bootstrap
-      ./configure --prefix="$BUILD_DIR"/deps --sysconfdir="$BUILD_DIR"/deps/etc
+      ./configure --prefix="$BUILD_DIR"/deps --sysconfdir="$BUILD_DIR"/deps/etc $HOST_TRIPLET --disable-python-binding --disable-perl-binding --disable-php-binding --disable-guile-binding
       make -j$(nproc)
       make install
       popd
@@ -91,8 +86,8 @@ scripts:
       git clone --branch zeeweii_dso3d12 https://github.com/taligentx/sigrok-libsigrok
       pushd sigrok-libsigrok
       ./autogen.sh
-      ./configure --prefix="$BUILD_DIR"/deps
-      make -j$(nproc)
+      eval ./configure --prefix="$BUILD_DIR"/deps $HOST_TRIPLET $SIGROK_LD --without-libhidapi
+      eval make -j$(nproc) $SIGROK_LD
       make install
       popd
 
@@ -101,7 +96,10 @@ scripts:
       pushd QWT
       mkdir build
       cd build
-      cmake -DCMAKE_INSTALL_PREFIX="$BUILD_DIR"/deps -DQWT_CONFIG_BUILD_EXAMPLE=no -DQWT_CONFIG_BUILD_PLAYGROUND=no ..
+      cmake -DCMAKE_INSTALL_PREFIX="$BUILD_DIR"/deps \
+            -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+            -DQWT_CONFIG_BUILD_EXAMPLE=OFF -DQWT_CONFIG_BUILD_STATIC_EXAMPLE=OFF \
+            -DQWT_CONFIG_BUILD_PLAYGROUND=OFF ../
       make -j$(nproc)
       make install
       popd
@@ -114,13 +112,14 @@ scripts:
       export CONDA_SKIP_ADJUST_PATHS=0
       ./linuxdeploy-plugin-conda.sh --appdir AppDir
     - |2
-      # Generate AppRun.sh scrip
+      # Generate AppRun.sh script
       cat > "$BUILD_DIR"/AppRun.sh <<\EOF
       #! /bin/bash
 
-      # Load miniconda environment
-      . "$APPDIR"/usr/conda/etc/profile.d/conda.sh
-      conda activate
+      # Set paths for the bundled Conda environment
+      export PATH="$APPDIR/usr/conda/bin:$PATH"
+      export PYTHONHOME="$APPDIR/usr/conda"
+      export LD_LIBRARY_PATH="$APPDIR/usr/conda/lib:$APPDIR/usr/lib:$LD_LIBRARY_PATH"
 
       # Run SmuView
       exec "$APPDIR"/usr/bin/smuview "$@"
