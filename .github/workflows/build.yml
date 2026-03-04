@@ -132,14 +132,15 @@ jobs:
     strategy:
       matrix:
         target:
-          - target: "x86_64"
-            container: "x86_64"
-            cc: "gcc"
-            cxx: "g++"
-            ld: "ld"
-            ldflags: ""
-            qmake: "/usr/lib/x86_64-linux-gnu/qt5/bin/qmake"
-            force_pybind11_29: false
+          - target: "i386"
+            container: "x86_64-i386"
+            cc: "gcc -m32"
+            cxx: "g++ -m32"
+            ld: "ld -melf_i386"
+            ldflags: "-m32"
+            qmake: "/usr/lib/i386-linux-gnu/qt5/bin/qmake"
+            force_pybind11_29: true
+
 
     env:
       CC: ${{ matrix.target.cc }}
