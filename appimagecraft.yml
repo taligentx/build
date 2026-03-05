@@ -40,8 +40,9 @@ scripts:
       chmod +x linuxdeploy-plugin-conda.sh
       ./linuxdeploy-plugin-conda.sh --appdir AppDir
       . AppDir/usr/conda/bin/activate
-    - popd
-    - |2
+      export PKG_CONFIG_PATH="$BUILD_DIR"/deps/lib/pkgconfig:"$PKG_CONFIG_PATH"
+      echo "PKG_CONFIG_PATH (pre_build): $PKG_CONFIG_PATH"
+
       # Build libserialport
       git clone https://github.com/taligentx/sigrok-libserialport
       pushd sigrok-libserialport
@@ -81,6 +82,8 @@ scripts:
       make -j$(nproc)
       make install
       popd
+
+    - popd
 
   post_build:
     - |2
