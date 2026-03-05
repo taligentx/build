@@ -14,6 +14,7 @@ build:
       - PYBIND11_FINDPYTHON=ON
     raw_extra_variables:
       - FORCE_PYBIND11_29=$FORCE_PYBIND11_29
+      - CMAKE_PREFIX_PATH=$BUILD_DIR/deps
     raw_environment:
       # We have to pre-build some dependencies, and also want to ship our own custom Python environment
       # the CMake build system has been instructed to load the dependencies via pkg-config
@@ -65,7 +66,7 @@ scripts:
       git clone --branch zeeweii_dso3d12 https://github.com/taligentx/sigrok-libsigrok
       pushd sigrok-libsigrok
       ./autogen.sh
-      eval ./configure --prefix="$BUILD_DIR"/deps $HOST_TRIPLET $SIGROK_LD --without-libhidapi
+      eval ./configure --prefix="$BUILD_DIR"/deps $HOST_TRIPLET $SIGROK_LD
       eval make -j$(nproc) $SIGROK_LD
       make install
       popd
