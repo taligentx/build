@@ -12,8 +12,7 @@ build:
       - ENABLE_TESTS=n
       - CMAKE_EXPORT_COMPILE_COMMANDS=y
       - PYBIND11_FINDPYTHON=ON
-    raw_extra_variables:
-      - FORCE_PYBIND11_29=$FORCE_PYBIND11_29
+      - CMAKE_BUILD_TYPE=MinSizeRel
     raw_environment:
       # We have to pre-build some dependencies, and also want to ship our own custom Python environment
       # the CMake build system has been instructed to load the dependencies via pkg-config
@@ -29,11 +28,14 @@ scripts:
   pre_build:
     - pushd "$BUILD_DIR"
     - |2
-      echo "FORCE_PYBIND11_29: ${FORCE_PYBIND11_29}"
       # We need the Python environment before the build already, therefore we have to run the conda
       # plugin manually before the build
       #wget https://github.com/linuxdeploy/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
       wget https://github.com/knarfS/linuxdeploy-plugin-conda/raw/master/linuxdeploy-plugin-conda.sh
+      # Use a specific Miniconda version to keep size similar to upstream
+      export CONDA_DOWNLOAD_DIR="$BUILD_DIR/conda_download"
+      mkdir -p "$CONDA_DOWNLOAD_DIR"
+      wget -c https://repo.anaconda.com/miniconda/Miniconda3-py310_23.1.0-1-Linux-x86_64.sh -O "$CONDA_DOWNLOAD_DIR/Miniconda3-latest-Linux-x86_64.sh"
       # Skip the built-in cleanup as the build needs the development files (headers, libs, ...)
       export CONDA_SKIP_CLEANUP=1
       export CONDA_SKIP_ADJUST_PATHS=1
@@ -61,7 +63,17 @@ scripts:
       # Cleanup conda
       export CONDA_SKIP_INSTALL=1
       export CONDA_SKIP_ADJUST_PATHS=0
+      export CONDA_SKIP_CLEANUP=0
       ./linuxdeploy-plugin-conda.sh --appdir AppDir
+    - |2
+      # Additional cleanup to minimize size
+      pushd AppDir
+      rm -rf usr/conda/include usr/conda/pkgs usr/conda/share/gtk-doc usr/conda/share/doc usr/conda/share/man
+      find usr/conda/bin -type f -executable -exec strip {} \; || true
+      find usr/conda/lib -type f -iname "*.so*" -exec strip {} \; || true
+      find usr/bin -type f -executable -exec strip {} \; || true
+      find usr/lib -type f -iname "*.so*" -exec strip {} \; || true
+      popd
     - |2
       # Generate AppRun.sh scrip
       cat > "$BUILD_DIR"/AppRun.sh <<\EOF
@@ -86,4 +98,4 @@ appimage:
       - qt
     extra_args: --custom-apprun "$BUILD_DIR"/AppRun.sh
     raw_environment:
-      - LD_LIBRARY_PATH="$LD_LIBRARY_PATH":"$BUILD_DIR"/deps/lib:"$BUILD_DIR"/AppDir/usr/conda/lib:/usr/local/lib
+      - LD_LIBRARY_PATH="$LD_LIBRARY_PATH":"$BUILD_DIR"/deps/lib:"$BUILD_DIR"/AppDir/usr/conda/lib
