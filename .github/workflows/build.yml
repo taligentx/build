@@ -75,7 +75,7 @@ jobs:
             libvisa-dev nettle-dev libavahi-client-dev libhidapi-dev check \
             doxygen swig \
             cmake libboost-dev libboost-test-dev \
-            python3-dev python-gi-dev python3-setuptools
+            python3-dev python-gi-dev python-setuptools
 
       - name: Checkout sigrok-utils
         uses: actions/checkout@v3
@@ -138,16 +138,12 @@ jobs:
             cxx: "g++"
             ld: "ld"
             ldflags: ""
-            qmake: "/usr/lib/x86_64-linux-gnu/qt5/bin/qmake"
-            force_pybind11_29: false
 
     env:
       CC: ${{ matrix.target.cc }}
       CXX: ${{ matrix.target.cxx }}
       LD:  ${{ matrix.target.ld }}
       LDFLAGS: ${{ matrix.target.ldflags }}
-      FORCE_PYBIND11_29: ${{ matrix.target.force_pybind11_29 }}
-      QMAKE: ${{ matrix.target.qmake }}
 
     steps:
       - name: Update dependencies
@@ -172,7 +168,7 @@ jobs:
           ../appimagecraft-${{ matrix.target.target }}.AppImage build -d build/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: SmuView ${{ matrix.target.target }} AppImage
           path: smuview/SmuView*.AppImage*
@@ -243,36 +239,29 @@ jobs:
           makensis ${{ matrix.target.nsis_param }} smuview/build/contrib/smuview_cross.nsi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: SmuView NSIS ${{ matrix.target.target }} installer
           path: smuview/build/contrib/SmuView*installer.exe
-
-      - name: Upload debug artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SmuView ${{ matrix.target.target }} Executable
-          path: sr/bin/smuview.exe
 
 
   build_macos:
     name: SmuView MacOS build (${{ matrix.compiler.compiler }})
     if: false
 
-    runs-on: macos-13
+    runs-on: macos-11
 
     strategy:
       matrix:
         compiler:
-          #- { compiler: GCC, cc: "gcc", cxx: "g++" }
+          - { compiler: GCC, cc: "gcc", cxx: "g++" }
           - { compiler: LLVM, cc: "llvm-gcc", cxx: "llvm-g++" }
 
     env:
       CC: ${{ matrix.compiler.cc }}
       CXX: ${{ matrix.compiler.cxx }}
-      # We use Homebrew Qt6 and Qwt
-      HB_QTVER: "qt"
-      HB_QWTVER: "qwt"
+      # We use Homebrew Qt 5.15.x (current)
+      HB_QTVER: "qt@5"
       # We use Homebrew Python 3.x (current)
       HB_PYVER: "python@3"
 
@@ -281,7 +270,7 @@ jobs:
         run: |
           brew install autoconf automake autoconf-archive pkg-config \
             libtool libzip libusb libftdi hidapi nettle check doxygen swig \
-            glib glibmm@2.66 cmake "$HB_PYVER" boost "$HB_QTVER" "$HB_QWTVER"
+            glib glibmm@2.66 cmake "$HB_PYVER" boost "$HB_QTVER" qwt-qt5
 
       - name: Checkout sigrok-utils
         uses: actions/checkout@v3
@@ -304,13 +293,10 @@ jobs:
       - name: Build smuview
         run: |
           source sigrok-util/cross-compile/github-actions/sigrok-macos-init-toolchain.sh
-          export LD_LIBRARY_PATH="$LD_LIBRARY_PATH":$(brew --prefix "$HB_QWTVER")
-          ls -RLl $(brew --prefix "$HB_QWTVER")
           mkdir -p smuview/build
           cd smuview/build
           PKG_CONFIG_PATH=$P cmake \
             -DCMAKE_INSTALL_PREFIX:PATH=$INSTALL_DIR \
-            -DCMAKE_PREFIX_PATH=$(brew --prefix "$HB_QWTVER") \
             -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
             -DDISABLE_WERROR=FALSE \
             -DENABLE_TESTS=TRUE \
@@ -329,7 +315,7 @@ jobs:
       - name: Upload artifact
         # Only upload artifact from the LLVM build!
         if: startsWith(matrix.compiler.compiler, 'LLVM')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: SmuView DMG
           path: sigrok-util/cross-compile/github-actions/SmuView*.dmg
@@ -356,7 +342,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libfuse2
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v2
       - name: Inspect directory after downloading artifacts
         run: ls -alFR
       - name: Upload artifacts and create (continuous) release

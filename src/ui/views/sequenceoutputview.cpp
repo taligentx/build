@@ -181,13 +181,8 @@ void SequenceOutputView::setup_ui()
 	repeat_layout->addSpacing(8);
 	repeat_infinite_box_ = new QCheckBox(tr("infinite"));
 	repeat_infinite_box_->setChecked(true);
-	#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-		connect(repeat_infinite_box_, &QCheckBox::checkStateChanged,
-			this, &SequenceOutputView::on_repeat_infinite_changed);
-	#else
-		connect(repeat_infinite_box_, &QCheckBox::stateChanged,
-			this, &SequenceOutputView::on_repeat_infinite_changed);
-	#endif
+	connect(repeat_infinite_box_, &QCheckBox::stateChanged,
+		this, &SequenceOutputView::on_repeat_infinite_changed);
 	repeat_layout->addWidget(repeat_infinite_box_);
 	repeat_layout->addSpacing(8);
 	repeat_count_box_ = new QSpinBox();

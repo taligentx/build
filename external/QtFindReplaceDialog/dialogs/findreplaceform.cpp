@@ -6,7 +6,7 @@
 #include <QCheckBox>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QRegularExpression>
+#include <QRegExp>
 #include <QSettings>
 #include <QShowEvent>
 #include <QTextEdit>
@@ -137,8 +137,7 @@ void FindReplaceForm::validateRegExp(const QString &text)
         return; // nothing to validate
     }
 
-    QRegularExpression reg(text,
-        (ui->caseCheckBox->isChecked() ? QRegularExpression::NoPatternOption : QRegularExpression::CaseInsensitiveOption));
+    QRegExp reg(text, (ui->caseCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive));
 
     if (reg.isValid())
     {
@@ -226,8 +225,7 @@ void FindReplaceForm::find(bool next)
 
     if (ui->regexCheckBox->isChecked())
     {
-        QRegularExpression reg(toSearch,
-            (ui->caseCheckBox->isChecked() ? QRegularExpression::NoPatternOption : QRegularExpression::CaseInsensitiveOption));
+        QRegExp reg(toSearch, (ui->caseCheckBox->isChecked() ? Qt::CaseSensitive : Qt::CaseInsensitive));
 
 #if (DEBUG_FIND)
         qDebug() << "searching for regexp: " << reg.pattern();

@@ -75,27 +75,16 @@ void BoolCheckBox::connect_signals()
 void BoolCheckBox::connect_widget_2_prop_signals()
 {
 	if (auto_commit_ && property_ != nullptr && property_->is_setable()) {
-		#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-			connect(this, &BoolCheckBox::checkStateChanged,
-				this, &BoolCheckBox::value_changed);
-		#else
-			connect(this, &BoolCheckBox::stateChanged,
-				this, &BoolCheckBox::value_changed);
-		#endif
-
+		connect(this, &BoolCheckBox::stateChanged,
+			this, &BoolCheckBox::value_changed);
 	}
 }
 
 void BoolCheckBox::disconnect_widget_2_prop_signals()
 {
 	if (auto_commit_ && property_ != nullptr && property_->is_setable()) {
-		#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-			disconnect(this, &BoolCheckBox::checkStateChanged,
-				this, &BoolCheckBox::value_changed);
-		#else
-			disconnect(this, &BoolCheckBox::stateChanged,
-				this, &BoolCheckBox::value_changed);
-		#endif
+		disconnect(this, &BoolCheckBox::stateChanged,
+			this, &BoolCheckBox::value_changed);
 	}
 }
 

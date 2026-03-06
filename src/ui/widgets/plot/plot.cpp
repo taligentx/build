@@ -91,9 +91,10 @@ public:
 		/*
 		 * NOTE:
 		 * The backing store is important, when working with widget overlays
-		 * (f.e rubberbands for zooming).
+		 * (f.e rubberbands for zooming). Here we don't have them and the
+		 * internal backing store of QWidget is good enough.
 		 */
-		setPaintAttribute(QwtPlotCanvas::BackingStore, true);
+		setPaintAttribute(QwtPlotCanvas::BackingStore, false);
 		/*
 		 * NOTE:
 		 * ImmediatePaint is necessary so "old" curves will be deleted.
