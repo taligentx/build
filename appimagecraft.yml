@@ -14,7 +14,6 @@ build:
       - PYBIND11_FINDPYTHON=ON
     raw_extra_variables:
       - FORCE_PYBIND11_29=$FORCE_PYBIND11_29
-      - CMAKE_PREFIX_PATH=$BUILD_DIR/deps
     raw_environment:
       # We have to pre-build some dependencies, and also want to ship our own custom Python environment
       # the CMake build system has been instructed to load the dependencies via pkg-config
@@ -41,50 +40,21 @@ scripts:
       chmod +x linuxdeploy-plugin-conda.sh
       ./linuxdeploy-plugin-conda.sh --appdir AppDir
       . AppDir/usr/conda/bin/activate
-      export PKG_CONFIG_PATH="$BUILD_DIR"/deps/lib/pkgconfig:"$PKG_CONFIG_PATH"
-      echo "PKG_CONFIG_PATH (pre_build): $PKG_CONFIG_PATH"
-
-      # Build libserialport
-      git clone https://github.com/taligentx/sigrok-libserialport
-      pushd sigrok-libserialport
-      ./autogen.sh
-      ./configure --prefix="$BUILD_DIR"/deps $HOST_TRIPLET
-      make -j$(nproc)
-      make install
-      popd
-
-      # Build libgpib
-      git clone https://git.code.sf.net/p/linux-gpib/git linux-gpib
-      pushd linux-gpib/linux-gpib-user
-      ./bootstrap
-      ./configure --prefix="$BUILD_DIR"/deps --sysconfdir="$BUILD_DIR"/deps/etc $HOST_TRIPLET --disable-python-binding --disable-perl-binding --disable-php-binding --disable-guile-binding
-      make -j$(nproc)
-      make install
-      popd
-
-      # Build libsigrok
-      git clone --branch zeeweii_dso3d12 https://github.com/taligentx/sigrok-libsigrok
-      pushd sigrok-libsigrok
-      ./autogen.sh
-      eval ./configure --prefix="$BUILD_DIR"/deps $HOST_TRIPLET $SIGROK_LD
-      eval make -j$(nproc) $SIGROK_LD
-      make install
-      popd
-
-      # Build QWT
-      git clone https://github.com/czyt1988/QWT.git
-      pushd QWT
-      mkdir build
-      cd build
-      cmake -DCMAKE_INSTALL_PREFIX="$BUILD_DIR"/deps \
-            -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
-            -DQWT_CONFIG_BUILD_EXAMPLE=OFF -DQWT_CONFIG_BUILD_STATIC_EXAMPLE=OFF \
-            -DQWT_CONFIG_BUILD_PLAYGROUND=OFF ../
-      make -j$(nproc)
-      make install
-      popd
-
     - popd
+    - |2
+      # Build libserialport and libsigrok
+      for i in libserialport libsigrok; do
+          git clone --depth=1 git://sigrok.org/"$i"
+          pushd "$i"
+          ./autogen.sh
+          # Once libserialport is built, libsigrok can be linked against it
+          export PKG_CONFIG_PATH="$BUILD_DIR"/deps/lib/pkgconfig:"$PKG_CONFIG_PATH"
+          echo "PKG_CONFIG_PATH (pre_build): $PKG_CONFIG_PATH"
+          ./configure --prefix="$BUILD_DIR"/deps
+          make -j$(nprocs)
+          make install
+          popd
+      done
 
   post_build:
     - |2
